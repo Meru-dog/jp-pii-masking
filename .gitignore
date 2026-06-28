@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.venv*/
+venv/
+env/
+
+# CDK
+cdk.out/
+*.bak
+
+# Node
+node_modules/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Local environment / secrets（実値は絶対にコミットしない）
+.env
+*.local
+config.local.json
+
+# サンプル/作業ファイル
+/tmp/
+sample.txt

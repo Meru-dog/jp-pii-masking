@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>機密マスキング 確認コンソール</title>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  :root{
+    --paper:#EEF1F4; --surface:#FFFFFF; --ink:#16202C; --ink-soft:#5B6876;
+    --line:#DCE2E8; --line-strong:#C3CCD6;
+    --seal:#C0392B; --seal-deep:#8E2A20;
+    --chip:#1C2A38; --chip-text:#E8ECF1;
+    --regex:#5B6876; --guardrails:#2E7D72; --comprehend:#B07A1E;
+    --ok:#2E7D72;
+    --font-jp:"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic",YuGothic,"Noto Sans JP",system-ui,sans-serif;
+    --font-mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--font-jp);
+    font-feature-settings:"palt";line-height:1.7;-webkit-font-smoothing:antialiased;}
+  a{color:inherit;}
+  .eyebrow{font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--ink-soft);}
+  .mono{font-family:var(--font-mono);}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;}
+  input,select{font-family:inherit;font-size:14px;}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:2px;
+    font-size:14px;font-weight:600;border:1px solid var(--line-strong);background:var(--surface);
+    color:var(--ink);transition:.12s;}
+  .btn:hover{border-color:var(--ink);}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+  .btn-primary{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .btn-primary:hover{background:#0d1822;}
+  .btn-seal{background:var(--seal);color:#fff;border-color:var(--seal);}
+  .btn-seal:hover{background:var(--seal-deep);border-color:var(--seal-deep);}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:12px;color:var(--ink-soft);letter-spacing:.02em;}
+  .field input,.field select{padding:9px 11px;border:1px solid var(--line-strong);border-radius:2px;
+    background:var(--surface);color:var(--ink);}
+  .field input:focus,.field select:focus{outline:2px solid var(--ink);outline-offset:-1px;border-color:var(--ink);}
+
+  /* top bar */
+  header.bar{display:flex;align-items:center;justify-content:space-between;
+    padding:14px 28px;background:var(--ink);color:#fff;}
+  header.bar .brand{display:flex;flex-direction:column;}
+  header.bar .brand b{font-size:15px;letter-spacing:.04em;font-weight:700;}
+  header.bar .brand span{font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;
+    color:#9fb0c2;text-transform:uppercase;}
+  header.bar .who{font-family:var(--font-mono);font-size:12px;color:#9fb0c2;}
+
+  .wrap{max-width:1080px;margin:0 auto;padding:28px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:3px;}
+  .card .hd{display:flex;align-items:center;justify-content:space-between;
+    padding:16px 20px;border-bottom:1px solid var(--line);}
+  .card .hd h2{margin:0;font-size:15px;letter-spacing:.02em;}
+  .card .bd{padding:20px;}
+
+  /* login */
+  .login-shell{min-height:100vh;display:grid;place-items:center;
+    background:
+      radial-gradient(120% 80% at 80% -10%, rgba(192,57,43,.06), transparent 60%),
+      var(--paper);}
+  .login{width:380px;}
+  .login .seal-mark{width:46px;height:46px;border:2px solid var(--seal);border-radius:50%;
+    display:grid;place-items:center;color:var(--seal);font-weight:800;font-size:18px;
+    transform:rotate(-6deg);margin-bottom:18px;}
+  .login h1{font-size:20px;margin:0 0 4px;letter-spacing:.02em;}
+  .login p.sub{margin:0 0 22px;color:var(--ink-soft);font-size:13px;}
+  .stack{display:flex;flex-direction:column;gap:14px;}
+
+  .config{margin-top:18px;border-top:1px dashed var(--line-strong);padding-top:16px;}
+  .config summary{cursor:pointer;font-size:12px;color:var(--ink-soft);font-family:var(--font-mono);
+    letter-spacing:.08em;}
+  .config .grid{display:grid;gap:12px;margin-top:14px;}
+
+  .notice{padding:11px 14px;border-radius:2px;font-size:13px;border:1px solid;}
+  .notice.err{background:#fbecea;border-color:#e7b4ae;color:#7a241b;}
+  .notice.ok{background:#e4f1ee;border-color:#b6d8d0;color:#1f5a4f;}
+  .notice.info{background:#eaeef3;border-color:#cdd6e0;color:#3c4a59;}
+
+  /* toolbar */
+  .toolbar{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;}
+  .toolbar .field{min-width:0;}
+  .grow{flex:1;}
+
+  /* breadcrumb + list */
+  .crumbs{font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);
+    display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:2px;}
+  .crumbs button{color:var(--ink-soft);text-decoration:underline;text-underline-offset:2px;}
+  .crumbs button:hover{color:var(--ink);}
+  table.list{width:100%;border-collapse:collapse;}
+  table.list th{text-align:left;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-soft);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);}
+  table.list td{padding:10px;border-bottom:1px solid var(--line);font-size:14px;vertical-align:middle;}
+  table.list tr:last-child td{border-bottom:none;}
+  .name-cell{display:flex;align-items:center;gap:10px;}
+  .ic{width:20px;text-align:center;color:var(--ink-soft);font-family:var(--font-mono);}
+  .meta-dim{font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);}
+  .row-link{background:none;color:var(--ink);font-weight:600;text-align:left;}
+  .row-link:hover{color:var(--seal);}
+  .badge{font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;padding:2px 7px;
+    border-radius:999px;border:1px solid var(--line-strong);color:var(--ink-soft);}
+  .badge.pending{border-color:#d9c08a;color:#8a6d22;background:#fbf4e2;}
+  .badge.approved{border-color:#a9d2c8;color:#1f5a4f;background:#e4f1ee;}
+
+  .empty{padding:40px 20px;text-align:center;color:var(--ink-soft);}
+  .empty .big{font-size:15px;color:var(--ink);margin-bottom:6px;}
+
+  /* review */
+  .review-grid{display:grid;grid-template-columns:1.55fr 1fr;gap:20px;align-items:start;}
+  @media(max-width:860px){.review-grid{grid-template-columns:1fr;}}
+  .doc{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:22px 24px;
+    white-space:pre-wrap;word-break:break-word;font-size:15px;line-height:2.05;position:relative;}
+  .chip{display:inline-block;background:var(--chip);color:var(--chip-text);font-family:var(--font-mono);
+    font-size:12px;padding:1px 7px;border-radius:2px;letter-spacing:.02em;
+    box-shadow:inset 0 -2px 0 rgba(0,0,0,.25);}
+  .panel h3{margin:0 0 2px;font-size:13px;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:4px 0 14px;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);}
+  .dot{width:9px;height:9px;border-radius:2px;display:inline-block;}
+  .src-regex{background:var(--regex);} .src-guardrails{background:var(--guardrails);}
+  .src-comprehend{background:var(--comprehend);}
+  table.meta{width:100%;border-collapse:collapse;}
+  table.meta th{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft);
+    text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);}
+  table.meta td{padding:7px 8px;border-bottom:1px solid var(--line);font-size:13px;}
+  .srcbadge{font-family:var(--font-mono);font-size:10px;padding:1px 6px;border-radius:2px;color:#fff;margin-right:4px;}
+  .sb-regex{background:var(--regex);} .sb-guardrails{background:var(--guardrails);}
+  .sb-comprehend{background:var(--comprehend);}
+
+  /* seal stamp */
+  .seal-stamp{position:absolute;top:18px;right:20px;width:84px;height:84px;border:3px double var(--seal);
+    border-radius:50%;display:grid;place-items:center;color:var(--seal);transform:rotate(-9deg);
+    font-weight:800;opacity:.92;}
+  .seal-stamp small{display:block;font-family:var(--font-mono);font-size:8px;letter-spacing:.15em;}
+  .seal-stamp b{font-size:24px;letter-spacing:.1em;}
+
+  .spread{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+  .muted{color:var(--ink-soft);font-size:13px;}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line-strong);
+    border-top-color:var(--ink);border-radius:50%;animation:s .7s linear infinite;}
+  @keyframes s{to{transform:rotate(360deg);}}
+  .mt12{margin-top:12px;} .mt16{margin-top:16px;} .mt20{margin-top:20px;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useMemo } = React;
+
+// ---- 設定の永続化（ブラウザのローカル保存） ----
+const CFG_KEY = "jp_pii_ui_cfg";
+const loadCfg = () => { try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch { return {}; } };
+const saveCfg = (c) => localStorage.setItem(CFG_KEY, JSON.stringify(c));
+
+// ---- Cognito InitiateAuth（SDK不要・HTTPS直叩き） ----
+async function cognitoLogin({ region, clientId, username, password }) {
+  const res = await fetch(`https://cognito-idp.${region}.amazonaws.com/`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-amz-json-1.1",
+      "X-Amz-Target": "AWSCognitoIdentityProviderService.InitiateAuth",
+    },
+    body: JSON.stringify({
+      AuthFlow: "USER_PASSWORD_AUTH",
+      ClientId: clientId,
+      AuthParameters: { USERNAME: username, PASSWORD: password },
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    const msg = data.message || data.__type || "サインインに失敗しました。";
+    throw new Error(msg);
+  }
+  if (data.ChallengeName === "NEW_PASSWORD_REQUIRED") {
+    throw new Error("初回パスワード変更が必要です。CLI で恒久パスワードを設定してください（admin-set-user-password --permanent）。");
+  }
+  return data.AuthenticationResult.IdToken;
+}
+
+// ---- API クライアント ----
+function makeApi(endpoint, token) {
+  const base = endpoint.replace(/\/+$/, "");
+  const call = async (path, opts = {}) => {
+    const res = await fetch(base + path, {
+      ...opts,
+      headers: { "Authorization": token, "Content-Type": "application/json", ...(opts.headers || {}) },
+    });
+    const text = await res.text();
+    let body; try { body = text ? JSON.parse(text) : {}; } catch { body = { raw: text }; }
+    if (!res.ok) throw new Error(body.error || `エラー (${res.status})`);
+    return body;
+  };
+  return {
+    listDocuments: (prefix) => call(`/documents?prefix=${encodeURIComponent(prefix)}`),
+    uploadUrl: (key) => call(`/uploads`, { method: "POST", body: JSON.stringify({ key }) }),
+    downloadUrl: (key) => call(`/documents/download?key=${encodeURIComponent(key)}`),
+    approve: (meta_key) => call(`/documents/approve`, { method: "POST", body: JSON.stringify({ meta_key }) }),
+  };
+}
+
+// ---- 墨消しチップ描画（[タグ] をチップにする） ----
+function MaskedText({ text }) {
+  const parts = useMemo(() => {
+    const out = []; const re = /\[[^\[\]\n]{1,12}\]/g; let last = 0, m;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > last) out.push({ t: "txt", v: text.slice(last, m.index) });
+      out.push({ t: "chip", v: m[0] }); last = m.index + m[0].length;
+    }
+    if (last < text.length) out.push({ t: "txt", v: text.slice(last) });
+    return out;
+  }, [text]);
+  return <div className="doc">{parts.map((p, i) => p.t === "chip"
+    ? <span key={i} className="chip">{p.v}</span>
+    : <span key={i}>{p.v}</span>)}</div>;
+}
+
+const SRC_LABEL = { regex: "規則", guardrails: "Guardrails", comprehend: "Comprehend" };
+
+function App() {
+  const [cfg, setCfg] = useState(loadCfg());
+  const [token, setToken] = useState(null);
+  const [user, setUser] = useState("");
+  const [view, setView] = useState("browse"); // browse | review
+  const [review, setReview] = useState(null);
+
+  const api = useMemo(() => (token ? makeApi(cfg.endpoint, token) : null), [token, cfg.endpoint]);
+  const signOut = () => { setToken(null); setView("browse"); setReview(null); };
+
+  if (!token) return <Login cfg={cfg} setCfg={setCfg} onAuth={(tok, u) => { setToken(tok); setUser(u); }} />;
+
+  return (
+    <div>
+      <header className="bar">
+        <div className="brand"><b>機密マスキング 確認コンソール</b><span>Review &amp; Approve</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
+          <span className="who">{user}</span>
+          <button className="btn" onClick={signOut}>サインアウト</button>
+        </div>
+      </header>
+      <div className="wrap">
+        {view === "browse"
+          ? <Browse api={api} onReview={(r) => { setReview(r); setView("review"); }} />
+          : <Review api={api} target={review} onBack={() => setView("browse")} />}
+      </div>
+    </div>
+  );
+}
+
+function Login({ cfg, setCfg, onAuth }) {
+  const [endpoint, setEndpoint] = useState(cfg.endpoint || "");
+  const [region, setRegion] = useState(cfg.region || "ap-northeast-1");
+  const [clientId, setClientId] = useState(cfg.clientId || "");
+  const [email, setEmail] = useState("");
+  const [pw, setPw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+
+  const submit = async () => {
+    setErr("");
+    if (!endpoint || !region || !clientId) { setErr("接続設定（APIエンドポイント・リージョン・クライアントID）を入力してください。"); return; }
+    setBusy(true);
+    try {
+      const tok = await cognitoLogin({ region, clientId, username: email, password: pw });
+      const c = { endpoint, region, clientId }; setCfg(c); saveCfg(c);
+      onAuth(tok, email);
+    } catch (e) { setErr(e.message); } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="login-shell">
+      <div className="login">
+        <div className="seal-mark">確</div>
+        <h1>確認コンソール</h1>
+        <p className="sub">日本語文書の機密マスキング結果を確認し、承認します。</p>
+        <div className="stack">
+          {err && <div className="notice err">{err}</div>}
+          <div className="field"><label>メールアドレス</label>
+            <input value={email} onChange={e=>setEmail(e.target.value)} autoComplete="username"
+              onKeyDown={e=>e.key==="Enter"&&submit()} /></div>
+          <div className="field"><label>パスワード</label>
+            <input type="password" value={pw} onChange={e=>setPw(e.target.value)} autoComplete="current-password"
+              onKeyDown={e=>e.key==="Enter"&&submit()} /></div>
+          <button className="btn btn-primary" onClick={submit} disabled={busy}
+            style={{justifyContent:"center"}}>
+            {busy ? <><span className="spin"></span> 認証中…</> : "サインイン"}</button>
+
+          <details className="config" open={!endpoint || !clientId}>
+            <summary>接続設定</summary>
+            <div className="grid">
+              <div className="field"><label>API エンドポイント</label>
+                <input value={endpoint} onChange={e=>setEndpoint(e.target.value)}
+                  placeholder="https://xxxx.execute-api.ap-northeast-1.amazonaws.com" /></div>
+              <div className="field"><label>リージョン</label>
+                <input value={region} onChange={e=>setRegion(e.target.value)} /></div>
+              <div className="field"><label>ユーザープール クライアントID</label>
+                <input value={clientId} onChange={e=>setClientId(e.target.value)} /></div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Browse({ api, onReview }) {
+  const [prefix, setPrefix] = useState("");
+  const [data, setData] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const refresh = useCallback(async (p) => {
+    setBusy(true); setErr("");
+    try { setData(await api.listDocuments(p)); }
+    catch (e) { setErr(e.message); } finally { setBusy(false); }
+  }, [api]);
+
+  useEffect(() => { refresh(prefix); }, [prefix, refresh]);
+
+  // マスク成果物（.masked.txt）と対応する .meta.json をペアにまとめる
+  const rows = useMemo(() => {
+    if (!data) return [];
+    const files = data.files || [];
+    const metas = new Set(files.filter(f=>f.key.endsWith(".meta.json")).map(f=>f.key));
+    return files.filter(f=>f.key.endsWith(".masked.txt")).map(f=>{
+      const stem = f.key.slice(0, -(".masked.txt".length));
+      const metaKey = stem + ".meta.json";
+      return { masked: f.key, meta: metas.has(metaKey) ? metaKey : null,
+               name: f.key.split("/").pop(), size: f.size, mod: f.last_modified };
+    });
+  }, [data]);
+
+  const crumbParts = prefix ? prefix.replace(/\/$/, "").split("/") : [];
+
+  const upload = async (file) => {
+    setMsg(""); setErr("");
+    const key = (prefix || "") + file.name;
+    try {
+      setMsg(`アップロード中：${file.name}`);
+      const { url } = await api.uploadUrl(key);
+      const put = await fetch(url, { method: "PUT", body: file });
+      if (!put.ok) throw new Error(`S3 へのアップロードに失敗しました (${put.status})`);
+      setMsg(`アップロード完了：${file.name}。処理後、数十秒で成果物が現れます。`);
+      setTimeout(() => refresh(prefix), 8000);
+    } catch (e) { setErr(e.message); setMsg(""); }
+  };
+
+  return (
+    <div>
+      <div className="card">
+        <div className="hd"><h2>アップロード</h2><span className="eyebrow">PDF · Word · MD · TXT</span></div>
+        <div className="bd">
+          <div className="toolbar">
+            <div className="field grow"><label>保存先（プレフィックス）</label>
+              <input value={prefix} onChange={e=>setPrefix(e.target.value)} placeholder="2026/06/" /></div>
+            <label className="btn btn-primary">
+              ファイルを選択してアップロード
+              <input type="file" style={{display:"none"}} accept=".pdf,.docx,.md,.markdown,.txt,.text"
+                onChange={e=>{ const f=e.target.files[0]; if(f) upload(f); e.target.value=""; }} />
+            </label>
+          </div>
+          {msg && <div className="notice info mt12">{msg}</div>}
+        </div>
+      </div>
+
+      <div className="card mt20">
+        <div className="hd">
+          <h2>成果物</h2>
+          <button className="btn" onClick={()=>refresh(prefix)} disabled={busy}>
+            {busy ? <span className="spin"></span> : "再読み込み"}</button>
+        </div>
+        <div className="bd">
+          <div className="crumbs">
+            <button onClick={()=>setPrefix("")}>root</button>
+            {crumbParts.map((part, i) => {
+              const p = crumbParts.slice(0, i+1).join("/") + "/";
+              return <React.Fragment key={i}><span>/</span><button onClick={()=>setPrefix(p)}>{part}</button></React.Fragment>;
+            })}
+          </div>
+
+          {err && <div className="notice err mt12">{err}</div>}
+
+          {!err && (
+            <table className="list mt12">
+              <thead><tr><th>名前</th><th>状態</th><th>サイズ</th><th>更新</th><th></th></tr></thead>
+              <tbody>
+                {(data?.folders || []).map(f => (
+                  <tr key={f}>
+                    <td className="name-cell"><span className="ic">▸</span>
+                      <button className="row-link" onClick={()=>setPrefix(f)}>{f.replace(prefix,"").replace(/\/$/,"")}/</button></td>
+                    <td></td><td className="meta-dim">—</td><td className="meta-dim">—</td><td></td>
+                  </tr>
+                ))}
+                {rows.map(r => (
+                  <tr key={r.masked}>
+                    <td className="name-cell"><span className="ic">▤</span>{r.name}</td>
+                    <td><StatusBadge api={api} metaKey={r.meta} /></td>
+                    <td className="meta-dim">{r.size}B</td>
+                    <td className="meta-dim">{(r.mod||"").replace("T"," ").slice(0,16)}</td>
+                    <td style={{textAlign:"right"}}>
+                      {r.meta
+                        ? <button className="btn" onClick={()=>onReview(r)}>確認する</button>
+                        : <span className="muted">メタ欠落</span>}</td>
+                  </tr>
+                ))}
+                {(!data || ((data.folders||[]).length===0 && rows.length===0)) && (
+                  <tr><td colSpan="5"><div className="empty">
+                    <div className="big">まだ成果物はありません</div>
+                    上のボタンから文書をアップロードすると、ここに表示されます。</div></td></tr>
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// メタJSONを取得してステータスを表示（軽量）
+function StatusBadge({ api, metaKey }) {
+  const [st, setSt] = useState(null);
+  useEffect(() => { let live = true;
+    if (!metaKey) return;
+    (async () => {
+      try { const { url } = await api.downloadUrl(metaKey);
+        const r = await fetch(url); const j = await r.json();
+        if (live) setSt(j.status || "unknown");
+      } catch { if (live) setSt("unknown"); }
+    })();
+    return () => { live = false; };
+  }, [api, metaKey]);
+  if (!metaKey) return <span className="badge">—</span>;
+  if (st === null) return <span className="badge">…</span>;
+  if (st === "approved") return <span className="badge approved">承認済み</span>;
+  if (st === "review_pending") return <span className="badge pending">確認待ち</span>;
+  return <span className="badge">{st}</span>;
+}
+
+function Review({ api, target, onBack }) {
+  const [masked, setMasked] = useState(null);
+  const [meta, setMeta] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(true);
+  const [approving, setApproving] = useState(false);
+
+  useEffect(() => { let live = true;
+    (async () => {
+      setBusy(true); setErr("");
+      try {
+        const [mu, ju] = await Promise.all([api.downloadUrl(target.masked), api.downloadUrl(target.meta)]);
+        const [mt, jt] = await Promise.all([fetch(mu.url).then(r=>r.text()), fetch(ju.url).then(r=>r.json())]);
+        if (live) { setMasked(mt); setMeta(jt); }
+      } catch (e) { if (live) setErr(e.message); } finally { if (live) setBusy(false); }
+    })();
+    return () => { live = false; };
+  }, [api, target]);
+
+  const approve = async () => {
+    setApproving(true); setErr("");
+    try { await api.approve(target.meta); setMeta(m => ({ ...m, status: "approved" })); }
+    catch (e) { setErr(e.message); } finally { setApproving(false); }
+  };
+
+  const approved = meta?.status === "approved";
+  const regions = meta?.regions || [];
+
+  return (
+    <div>
+      <div className="spread mt12" style={{marginBottom:18}}>
+        <div>
+          <div className="eyebrow">確認 / 承認</div>
+          <h2 style={{margin:"2px 0 0",fontSize:18}}>{target.name}</h2>
+        </div>
+        <button className="btn" onClick={onBack}>← 一覧へ戻る</button>
+      </div>
+
+      {err && <div className="notice err" style={{marginBottom:16}}>{err}</div>}
+      {busy ? <div className="card"><div className="bd"><span className="spin"></span> 読み込み中…</div></div> : (
+        <div className="review-grid">
+          <div>
+            <div style={{position:"relative"}}>
+              <MaskedText text={masked || ""} />
+              {approved && <div className="seal-stamp"><div><small>承認</small><b>済</b></div></div>}
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="card">
+              <div className="hd"><h2>検出の内訳</h2><span className="eyebrow">{regions.length} 件</span></div>
+              <div className="bd">
+                <div className="legend">
+                  <span><i className="dot src-regex"></i>規則</span>
+                  <span><i className="dot src-guardrails"></i>Guardrails</span>
+                  <span><i className="dot src-comprehend"></i>Comprehend</span>
+                </div>
+                {regions.length === 0
+                  ? <div className="muted">検出されたマスク対象はありません。原文に機微情報が含まれていない可能性があります。レビューで確認してください。</div>
+                  : <table className="meta">
+                      <thead><tr><th>区分</th><th>位置</th><th>捕捉層</th></tr></thead>
+                      <tbody>{regions.map((r,i)=>(
+                        <tr key={i}>
+                          <td>{r.tag || r.entity_type}</td>
+                          <td className="mono" style={{color:"var(--ink-soft)"}}>{r.start}–{r.end}</td>
+                          <td>{(r.sources||[]).map(s=>(
+                            <span key={s} className={"srcbadge sb-"+s}>{SRC_LABEL[s]||s}</span>))}</td>
+                        </tr>))}
+                      </tbody>
+                    </table>}
+              </div>
+            </div>
+
+            <div className="card mt16">
+              <div className="bd">
+                <div className="spread">
+                  <div>
+                    <h3>この成果物を承認</h3>
+                    <div className="muted">マスク漏れがないことを確認のうえ承認してください。承認は記録されます。</div>
+                  </div>
+                  {approved
+                    ? <span className="badge approved">承認済み</span>
+                    : <button className="btn btn-seal" onClick={approve} disabled={approving}>
+                        {approving ? <><span className="spin"></span> 処理中…</> : "確認済みとして承認"}</button>}
+                </div>
+              </div>
+            </div>
+
+            <div className="muted mt12" style={{fontSize:12}}>
+              ※ マスク済みテキストはタグ置換済みで原文を含みません。マスク漏れを見つけた場合は、現バージョンでは
+              出力を破棄し、原文側で対処してください（手動マスク編集は今後の対応）。
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

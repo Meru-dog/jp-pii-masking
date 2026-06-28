@@ -1,0 +1,9 @@
+{
+  "app": "python3 app.py",
+  "context": {
+    "retain": "true",
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/aws-s3:createDefaultLoggingPolicy": true
+  }
+}
